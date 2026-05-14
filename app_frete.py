@@ -26,7 +26,12 @@ SCOPES = [
 
 
 def _sheets_client():
-    creds = Credentials.from_service_account_file(CREDS_PATH, scopes=SCOPES)
+    if "gcp_service_account" in st.secrets:
+        creds = Credentials.from_service_account_info(
+            dict(st.secrets["gcp_service_account"]), scopes=SCOPES
+        )
+    else:
+        creds = Credentials.from_service_account_file(CREDS_PATH, scopes=SCOPES)
     return gspread.authorize(creds)
 
 
