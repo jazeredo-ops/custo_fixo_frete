@@ -200,18 +200,17 @@ with tab1:
         .sort_values("ratio_medio", ascending=False)
     )
     st.dataframe(
-        cat_full.style.format(
-            {
-                "frete_total": "R$ {:,.0f}",
-                "frete_medio": "R$ {:,.2f}",
-                "valor_total": "R$ {:,.0f}",
-                "ratio_medio": "{:.1%}",
-                "ratio_mediana": "{:.1%}",
-                "frete_pct_receita": "{:.1%}",
-            }
-        ).background_gradient(subset=["ratio_medio"], cmap="RdYlGn_r"),
+        cat_full,
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "frete_total":       st.column_config.NumberColumn("frete_total",       format="R$ %.0f"),
+            "frete_medio":       st.column_config.NumberColumn("frete_medio",       format="R$ %.2f"),
+            "valor_total":       st.column_config.NumberColumn("valor_total",       format="R$ %.0f"),
+            "ratio_medio":       st.column_config.NumberColumn("ratio_medio",       format="%.1f%%"),
+            "ratio_mediana":     st.column_config.NumberColumn("ratio_mediana",     format="%.1f%%"),
+            "frete_pct_receita": st.column_config.NumberColumn("frete_pct_receita", format="%.1f%%"),
+        },
     )
 
 
@@ -275,16 +274,16 @@ with tab2:
 
         st.caption(f"{len(prod_saudavel):,} produtos com ratio ≤ {threshold_critico:.0%} que seriam reajustados")
         st.dataframe(
-            prod_saudavel[["NOME_PRODUTO", "NOME_CATEGORIA", "ocorrencias", "valor_medio", "novo_preco_medio", "ratio_medio", "receita_adicional"]]
-            .style.format({
-                "valor_medio":       "R$ {:,.2f}",
-                "novo_preco_medio":  "R$ {:,.2f}",
-                "ratio_medio":       "{:.1%}",
-                "receita_adicional": "R$ {:,.2f}",
-            }).background_gradient(subset=["receita_adicional"], cmap="Greens"),
+            prod_saudavel[["NOME_PRODUTO", "NOME_CATEGORIA", "ocorrencias", "valor_medio", "novo_preco_medio", "ratio_medio", "receita_adicional"]],
             use_container_width=True,
             hide_index=True,
             height=280,
+            column_config={
+                "valor_medio":       st.column_config.NumberColumn("valor_medio",       format="R$ %.2f"),
+                "novo_preco_medio":  st.column_config.NumberColumn("novo_preco_medio",  format="R$ %.2f"),
+                "ratio_medio":       st.column_config.NumberColumn("ratio_medio",       format="%.1f%%"),
+                "receita_adicional": st.column_config.NumberColumn("receita_adicional", format="R$ %.2f"),
+            },
         )
 
     # ── ALAVANCA 2 ────────────────────────────────────────────────────────────
@@ -308,16 +307,16 @@ with tab2:
 
             st.caption("Produtos críticos que seriam beneficiados pelo valor mínimo de pedido")
             st.dataframe(
-                prod_vmr[["NOME_PRODUTO", "NOME_CATEGORIA", "ocorrencias", "valor_medio", "frete_medio", "ratio_medio", "frete_absorvido"]]
-                .style.format({
-                    "valor_medio":     "R$ {:,.2f}",
-                    "frete_medio":     "R$ {:,.2f}",
-                    "ratio_medio":     "{:.1%}",
-                    "frete_absorvido": "R$ {:,.2f}",
-                }).background_gradient(subset=["ratio_medio"], cmap="RdYlGn_r"),
+                prod_vmr[["NOME_PRODUTO", "NOME_CATEGORIA", "ocorrencias", "valor_medio", "frete_medio", "ratio_medio", "frete_absorvido"]],
                 use_container_width=True,
                 hide_index=True,
                 height=280,
+                column_config={
+                    "valor_medio":     st.column_config.NumberColumn("valor_medio",     format="R$ %.2f"),
+                    "frete_medio":     st.column_config.NumberColumn("frete_medio",     format="R$ %.2f"),
+                    "ratio_medio":     st.column_config.NumberColumn("ratio_medio",     format="%.1f%%"),
+                    "frete_absorvido": st.column_config.NumberColumn("frete_absorvido", format="R$ %.2f"),
+                },
             )
         else:
             st.info("Nenhuma linha crítica com valor acima do mínimo definido.")
@@ -342,19 +341,18 @@ with tab2:
 
             st.caption("Produtos afetados pelo frete fixo subsidiado")
             st.dataframe(
-                prod_sub[["NOME_PRODUTO", "NOME_CATEGORIA", "ocorrencias", "valor_medio", "frete_medio", "frete_fixo", "ratio_medio", "ratio_apos_subsidio", "custo_subsidio_total"]]
-                .style.format({
-                    "valor_medio":          "R$ {:,.2f}",
-                    "frete_medio":          "R$ {:,.2f}",
-                    "frete_fixo":           "R$ {:,.2f}",
-                    "ratio_medio":          "{:.1%}",
-                    "ratio_apos_subsidio":  "{:.1%}",
-                    "custo_subsidio_total": "R$ {:,.2f}",
-                })
-                .background_gradient(subset=["ratio_apos_subsidio"], cmap="RdYlGn_r"),
+                prod_sub[["NOME_PRODUTO", "NOME_CATEGORIA", "ocorrencias", "valor_medio", "frete_medio", "frete_fixo", "ratio_medio", "ratio_apos_subsidio", "custo_subsidio_total"]],
                 use_container_width=True,
                 hide_index=True,
                 height=280,
+                column_config={
+                    "valor_medio":          st.column_config.NumberColumn("valor_medio",          format="R$ %.2f"),
+                    "frete_medio":          st.column_config.NumberColumn("frete_medio",          format="R$ %.2f"),
+                    "frete_fixo":           st.column_config.NumberColumn("frete_fixo",           format="R$ %.2f"),
+                    "ratio_medio":          st.column_config.NumberColumn("ratio_medio",          format="%.1f%%"),
+                    "ratio_apos_subsidio":  st.column_config.NumberColumn("ratio_apos_subsidio",  format="%.1f%%"),
+                    "custo_subsidio_total": st.column_config.NumberColumn("custo_subsidio_total", format="R$ %.2f"),
+                },
             )
         else:
             custo_subsidio = 0.0
@@ -492,19 +490,17 @@ with tab2:
                     "Valor linha", "Frete linha",
                     "ratio_isolado", "ratio_bundle",
                     "Trans. cobrindo",
-                ]].style.format({
-                    "Preço de venda":     "R$ {:,.2f}",
-                    "Frete médio unit.":  "R$ {:,.2f}",
-                    "Valor linha":        "R$ {:,.2f}",
-                    "Frete linha":        "R$ {:,.2f}",
-                    "ratio_isolado":      "{:.2%}",
-                    "ratio_bundle":       "{:.2%}",
-                }).background_gradient(
-                    subset=["ratio_isolado", "ratio_bundle"],
-                    cmap="RdYlGn_r",
-                ),
+                ]],
                 use_container_width=True,
                 hide_index=True,
+                column_config={
+                    "Preço de venda":    st.column_config.NumberColumn("Preço de venda",    format="R$ %.2f"),
+                    "Frete médio unit.": st.column_config.NumberColumn("Frete médio unit.", format="R$ %.2f"),
+                    "Valor linha":       st.column_config.NumberColumn("Valor linha",       format="R$ %.2f"),
+                    "Frete linha":       st.column_config.NumberColumn("Frete linha",       format="R$ %.2f"),
+                    "ratio_isolado":     st.column_config.NumberColumn("ratio_isolado",     format="%.2f%%"),
+                    "ratio_bundle":      st.column_config.NumberColumn("ratio_bundle",      format="%.2f%%"),
+                },
             )
 
     st.divider()
@@ -599,18 +595,16 @@ with tab3:
         df_rec_filtrado[
             ["NOME_PRODUTO", "NOME_CATEGORIA", "ocorrencias", "frete_total",
              "frete_medio", "valor_medio", "ratio_medio", "acao_sugerida"]
-        ]
-        .style.format(
-            {
-                "frete_total": "R$ {:,.2f}",
-                "frete_medio": "R$ {:,.2f}",
-                "valor_medio": "R$ {:,.2f}",
-                "ratio_medio": "{:.1%}",
-            }
-        ),
+        ],
         use_container_width=True,
         hide_index=True,
         height=450,
+        column_config={
+            "frete_total": st.column_config.NumberColumn("frete_total", format="R$ %.2f"),
+            "frete_medio": st.column_config.NumberColumn("frete_medio", format="R$ %.2f"),
+            "valor_medio": st.column_config.NumberColumn("valor_medio", format="R$ %.2f"),
+            "ratio_medio": st.column_config.NumberColumn("ratio_medio", format="%.1f%%"),
+        },
     )
 
     # Download CSV
