@@ -392,12 +392,15 @@ with tab2:
         uf_destino = None if uf_sel == "Todas" else uf_sel
 
         # ── Seletor de produtos — por SKU ou nome ─────────────────────────────
-        busca_sku = st.text_input("Buscar por SKU (PRODUTO_ID) ou nome", key="bundle_busca").strip()
+        busca_sku = st.text_input("Buscar por SKU (PRODUTO_ID) ou nome — separe múltiplos SKUs por vírgula", key="bundle_busca").strip()
         if busca_sku:
-            mask_busca = (
-                todos_produtos["NOME_PRODUTO"].str.contains(busca_sku, case=False, na=False)
-                | todos_produtos["PRODUTO_ID"].astype(str).str.contains(busca_sku, na=False)
-            )
+            termos = [t.strip() for t in busca_sku.split(",") if t.strip()]
+            mask_busca = pd.Series(False, index=todos_produtos.index)
+            for termo in termos:
+                mask_busca |= (
+                    todos_produtos["NOME_PRODUTO"].str.contains(termo, case=False, na=False)
+                    | todos_produtos["PRODUTO_ID"].astype(str).str.contains(termo, na=False)
+                )
             df_busca = todos_produtos[mask_busca]
         else:
             df_busca = todos_produtos
