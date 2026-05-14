@@ -506,6 +506,148 @@ with tab2:
                 },
             )
 
+    # ── ALAVANCA 5 — COMPENSADOR DE RATIO CRÍTICO ─────────────────────────────
+    with st.expander("5. Compensador de ratio crítico — o que vender junto?", expanded=False):
+        st.caption(
+            "Selecione um produto com ratio crítico e a UF de destino. "
+            "O app calcula o déficit de frete e sugere produtos âncora para diluir o ratio do pedido."
+        )
+
+        # Produto crítico a compensar
+        busca_critico = st.text_input("SKU ou nome do produto crítico", key="comp_busca").strip()
+        if busca_critico:
+            termos_c = [t.strip() for t in busca_critico.split(",") if t.strip()]
+            mask_c = pd.Series(False, index=todos_produtos.index)
+            for t in termos_c:
+                mask_c |= (
+                    todos_produtos["NOME_PRODUTO"].str.contains(t, case=False, na=False)
+                    | todos_produtos["PRODUTO_ID"].astype(str).str.contains(t, na=False)
+                )
+            df_critico_cand = todos_produtos[mask_c]
+        else:
+            df_critico_cand = todos_produtos
+
+        prod_critico_sel = st.selectbox(
+            "Produto crítico",
+            df_critico_cand["NOME_PRODUTO"].tolist(),
+            index=0 if not df_critico_cand.empty else None,
+            key="comp_produto",
+        )
+
+        col_uf1, col_uf2 = st.columns(2)
+        trans_comp = col_uf1.multiselect(
+            "Transportadoras",
+            list(TRANSPORTADORAS.keys()),
+            default=list(TRANSPORTADORAS.keys()),
+            key="comp_trans",
+        )
+        ufs_comp = ufs_cobertas_por(trans_comp) if trans_comp else []
+        uf_comp = col_uf2.selectbox(
+            "UF de destino",
+            [""] + ufs_comp,
+            index=0,
+            key="comp_uf",
+        )
+        threshold_comp = st.slider(
+            "Threshold aceitável de ratio (%)",
+            min_value=5, max_value=50, value=15, step=1,
+            format="%d%%",
+            key="comp_threshold",
+        ) / 100
+
+        if prod_critico_sel and uf_comp and trans_comp:
+            row_crit = todos_produtos[todos_produtos["NOME_PRODUTO"] == prod_critico_sel].iloc[0]
+            preco_crit = row_crit["preco_venda"] if pd.notna(row_crit["preco_venda"]) and row_crit["preco_venda"] > 0 else 0.0
+            peso_crit  = row_crit["peso_medio"]  if pd.notna(row_crit["peso_medio"])  and row_crit["peso_medio"]  > 0 else 1.0
+
+            res_crit = calcular_frete_medio(peso_crit, preco_crit, trans_comp, uf_destino=uf_comp)
+            frete_crit = res_crit["frete_medio"]
+            ratio_crit = frete_crit / preco_crit if preco_crit > 0 else 0
+
+            # Métricas do produto crítico
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Preço de venda", f"R$ {preco_crit:,.2f}")
+            m2.metric("Frete estimado", f"R$ {frete_crit:,.2f}")
+            m3.metric("Ratio atual", f"{ratio_crit:.1%}", delta=f"{ratio_crit - threshold_comp:.1%} acima do threshold", delta_color="inverse")
+
+            # Déficit: quanto de valor adicional precisa entrar no pedido para ratio <= threshold
+            # ratio_bundle = frete_total / valor_total <= threshold
+            # frete_total = frete_crit + frete_comp (frete dos adicionais)
+            # Se adicionarmos produtos de baixo peso/alto valor, frete_comp ≈ 0 para simplificar
+            # valor_minimo_adicional = frete_crit / threshold - preco_crit
+            valor_minimo_adicional = (frete_crit / threshold_comp) - preco_crit
+            valor_minimo_adicional = max(valor_minimo_adicional, 0)
+
+            if ratio_crit <= threshold_comp:
+                st.success(f"Este produto já está dentro do threshold de {threshold_comp:.0%} para {uf_comp}.")
+            else:
+                st.warning(
+                    f"Para diluir o ratio abaixo de {threshold_comp:.0%}, o pedido precisa de pelo menos "
+                    f"**R$ {valor_minimo_adicional:,.2f}** em produtos adicionais "
+                    f"(assumindo frete marginal zero nos adicionais)."
+                )
+
+                # Calcula frete real de cada produto candidato na mesma UF
+                # e filtra os que têm ratio_isolado baixo (bons âncoras)
+                st.markdown("**Produtos âncora sugeridos** — alto valor, baixo ratio isolado nessa UF:")
+
+                with st.spinner("Calculando fretes dos candidatos…"):
+                    candidatos = todos_produtos[
+                        todos_produtos["PRODUTO_ID"] != row_crit["PRODUTO_ID"]
+                    ].copy()
+
+                    # Pré-filtra: valor >= R$50 para evitar produtos baratos demais
+                    candidatos = candidatos[candidatos["preco_venda"].fillna(0) >= 50].copy()
+
+                    resultados = []
+                    for _, r in candidatos.iterrows():
+                        p  = r["preco_venda"] if pd.notna(r["preco_venda"]) and r["preco_venda"] > 0 else 0.0
+                        kg = r["peso_medio"]  if pd.notna(r["peso_medio"])  and r["peso_medio"]  > 0 else 1.0
+                        if p <= 0:
+                            continue
+                        fr = calcular_frete_medio(kg, p, trans_comp, uf_destino=uf_comp)["frete_medio"]
+                        ratio_iso = fr / p
+                        # Simula bundle: produto crítico + 1 unidade deste candidato
+                        ratio_bun = (frete_crit + fr) / (preco_crit + p)
+                        resultados.append({
+                            "PRODUTO_ID":    r["PRODUTO_ID"],
+                            "Produto":       r["NOME_PRODUTO"],
+                            "Categoria":     r["NOME_CATEGORIA"],
+                            "Preço":         p,
+                            "Peso (kg)":     kg,
+                            "Frete unit.":   fr,
+                            "ratio_isolado": ratio_iso,
+                            "ratio_bundle":  ratio_bun,
+                        })
+
+                    df_sug = pd.DataFrame(resultados)
+                    if not df_sug.empty:
+                        # Ordena por ratio_bundle asc, depois preço desc
+                        df_sug = (
+                            df_sug[df_sug["ratio_bundle"] <= threshold_comp]
+                            .sort_values(["ratio_bundle", "Preço"], ascending=[True, False])
+                            .head(20)
+                            .reset_index(drop=True)
+                        )
+
+                    if df_sug.empty:
+                        st.info("Nenhum produto sozinho consegue diluir o ratio abaixo do threshold. Tente aumentar o threshold ou adicionar múltiplos produtos no bundle acima.")
+                    else:
+                        st.caption(f"{len(df_sug)} produtos que, vendidos junto com '{row_crit['NOME_PRODUTO']}', trazem o ratio do pedido abaixo de {threshold_comp:.0%}")
+                        st.dataframe(
+                            df_sug[["Produto", "Categoria", "Preço", "Peso (kg)", "Frete unit.", "ratio_isolado", "ratio_bundle"]],
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Preço":         st.column_config.NumberColumn("Preço",         format="R$ %.2f"),
+                                "Frete unit.":   st.column_config.NumberColumn("Frete unit.",   format="R$ %.2f"),
+                                "ratio_isolado": st.column_config.NumberColumn("Ratio isolado", format="%.1f%%"),
+                                "ratio_bundle":  st.column_config.NumberColumn("Ratio c/ crítico", format="%.1f%%"),
+                            },
+                        )
+        else:
+            st.info("Selecione o produto crítico e a UF de destino para ver sugestões.")
+
     st.divider()
 
     # Resultado consolidado da simulação
